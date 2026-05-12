@@ -1,26 +1,13 @@
 import { Stack } from "expo-router";
 import { useEffect, useState } from "react";
 import { onAuthStateChanged } from "firebase/auth";
-import { doc, getDoc } from "firebase/firestore";
-import { auth, db } from "../firebase";
+import { auth } from "../firebase";
 
 export default function RootLayout() {
   const [loading, setLoading] = useState(true);
-  const [role, setRole] = useState<"leader" | "worshiper" | null>(null);
 
   useEffect(() => {
-    const unsub = onAuthStateChanged(auth, async (user) => {
-      if (!user) {
-        setRole(null);
-        setLoading(false);
-        return;
-      }
-
-      const snap = await getDoc(doc(db, "users", user.uid));
-      if (snap.exists()) {
-        setRole(snap.data().role);
-      }
-
+    const unsub = onAuthStateChanged(auth, () => {
       setLoading(false);
     });
 
@@ -36,9 +23,11 @@ export default function RootLayout() {
       <Stack.Screen name="login" />
       <Stack.Screen name="register" />
       <Stack.Screen name="role" />
+      <Stack.Screen name="edit-profile" />
 
       {/* Worshiper */}
       <Stack.Screen name="worshiper" />
+      <Stack.Screen name="leader-profile" />
       <Stack.Screen name="chat" />
 
       {/* Leader */}

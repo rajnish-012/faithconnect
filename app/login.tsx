@@ -11,7 +11,7 @@ export default function Login() {
   const [loading, setLoading] = useState(false);
 
   const handleLogin = async () => {
-    if (!email || !password) {
+    if (!email.trim() || !password) {
       Alert.alert("Error", "Please fill all fields");
       return;
     }
@@ -21,7 +21,7 @@ export default function Login() {
 
       const userCred = await signInWithEmailAndPassword(
         auth,
-        email,
+        email.trim(),
         password
       );
 
@@ -35,9 +35,9 @@ export default function Login() {
       const role = userDoc.data().role;
 
       if (role === "leader") {
-        router.replace("/leader");
+        router.replace({ pathname: "/leader" });
       } else {
-        router.replace("/worshiper");
+        router.replace({ pathname: "/worshiper" });
       }
     } catch (err: any) {
       Alert.alert("Login failed", err.message);
@@ -67,13 +67,17 @@ export default function Login() {
         onChangeText={setPassword}
       />
 
-      <TouchableOpacity style={styles.button} onPress={handleLogin}>
+      <TouchableOpacity
+        disabled={loading}
+        style={[styles.button, loading && styles.disabledButton]}
+        onPress={handleLogin}
+      >
         <Text style={styles.buttonText}>
           {loading ? "Logging in..." : "Login"}
         </Text>
       </TouchableOpacity>
 
-      <TouchableOpacity onPress={() => router.push("/role")}>
+      <TouchableOpacity onPress={() => router.push({ pathname: "/role" })}>
         <Text style={styles.link}>Not registered? Register</Text>
       </TouchableOpacity>
     </View>
@@ -106,6 +110,9 @@ const styles = StyleSheet.create({
     padding: 14,
     borderRadius: 8,
     marginTop: 10,
+  },
+  disabledButton: {
+    opacity: 0.7,
   },
   buttonText: {
     color: "#fff",

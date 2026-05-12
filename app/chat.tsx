@@ -1,124 +1,183 @@
+import { router, useLocalSearchParams } from "expo-router";
+import {
+  addDoc,
+  collection,
+  doc,
+  getDoc,
+  getDocs,
+  onSnapshot,
+  query,
+  serverTimestamp,
+  setDoc,
+  updateDoc,
+  where,
+} from "firebase/firestore";
 import { useEffect, useState } from "react";
 import {
-  View,
+  FlatList,
+  StyleSheet,
   Text,
   TextInput,
   TouchableOpacity,
-  FlatList,
-  StyleSheet,
+  View,
 } from "react-native";
-import { useLocalSearchParams } from "expo-router";
-import {
-  collection,
-  query,
-  where,
-  getDocs,
-  addDoc,
-  onSnapshot,
-  serverTimestamp,
-  orderBy,
-} from "firebase/firestore";
 import { auth, db } from "../firebase";
 
+type Message = {
+  id: string;
+  senderId?: string;
+  text?: string;
+  createdAt?: { toMillis?: () => number };
+};
+
+const sortOldestFirst = (items: Message[]) =>
+  [...items].sort((a, b) => {
+    const left = a.createdAt?.toMillis?.() ?? 0;
+    const right = b.createdAt?.toMillis?.() ?? 0;
+    return left - right;
+  });
+
 export default function Chat() {
-  const { eventId, leaderId } = useLocalSearchParams<{
-    eventId: string;
-    leaderId: string;
+  const { chatId: initialChatId, leaderId } = useLocalSearchParams<{
+    chatId?: string;
+    leaderId?: string;
   }>();
 
-  const user = auth.currentUser!;
-  const [chatId, setChatId] = useState<string | null>(null);
-  const [messages, setMessages] = useState<any[]>([]);
+  const user = auth.currentUser;
+  const [chatId, setChatId] = useState<string | null>(initialChatId ?? null);
+  const [messages, setMessages] = useState<Message[]>([]);
   const [text, setText] = useState("");
+  const [title, setTitle] = useState("Conversation");
 
-  /* ------------------------------------------------
-     FIND OR CREATE CHAT (ONCE)
-  ------------------------------------------------ */
   useEffect(() => {
+    if (!user) {
+      router.replace("/login");
+      return;
+    }
+
+    if (initialChatId) {
+      setChatId(initialChatId);
+      return;
+    }
+
+    if (!leaderId) return;
+
     const initChat = async () => {
-      // find existing chat
-      const q = query(
+      const leaderSnap = await getDoc(doc(db, "users", leaderId));
+      const leaderName = leaderSnap.exists()
+        ? leaderSnap.data().displayName || "Religious Leader"
+        : "Religious Leader";
+      setTitle(leaderName);
+
+      const existingQuery = query(
         collection(db, "chats"),
-        where("eventId", "==", eventId),
-        where("leaderId", "==", leaderId)
+        where("leaderId", "==", leaderId),
+        where("worshiperId", "==", user.uid),
       );
+      const existing = await getDocs(existingQuery);
 
-      const snap = await getDocs(q);
-
-      const existing = snap.docs.find(
-        (d) =>
-          d.data().worshiperId === user.uid ||
-          d.data().leaderId === user.uid
-      );
-
-      if (existing) {
-        setChatId(existing.id);
+      if (!existing.empty) {
+        setChatId(existing.docs[0].id);
         return;
       }
 
-      // only worshiper creates chat
-      if (user.uid !== leaderId) {
-        const chatRef = await addDoc(collection(db, "chats"), {
-          eventId,
-          leaderId,
-          worshiperId: user.uid,
-          createdAt: serverTimestamp(),
-        });
-
-        setChatId(chatRef.id);
-      }
+      const chatRef = doc(collection(db, "chats"));
+      await setDoc(chatRef, {
+        leaderId,
+        leaderName,
+        worshiperId: user.uid,
+        worshiperName: user.displayName ?? user.email ?? "Worshiper",
+        participantIds: [leaderId, user.uid],
+        lastMessage: "",
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+      });
+      setChatId(chatRef.id);
     };
 
     initChat();
-  }, []);
+  }, [initialChatId, leaderId, user]);
 
-  /* ------------------------------------------------
-     REALTIME MESSAGES
-  ------------------------------------------------ */
   useEffect(() => {
     if (!chatId) return;
 
-    const q = query(
-      collection(db, "chats", chatId, "messages"),
-      orderBy("createdAt", "asc")
-    );
-
-    return onSnapshot(q, (snap) => {
-      setMessages(snap.docs.map((d) => ({ id: d.id, ...d.data() })));
+    const chatRef = doc(db, "chats", chatId);
+    const unsubChat = onSnapshot(chatRef, (snap) => {
+      if (!snap.exists()) return;
+      const chat = snap.data();
+      const otherName =
+        user?.uid === chat.leaderId ? chat.worshiperName : chat.leaderName;
+      setTitle(otherName || "Conversation");
     });
-  }, [chatId]);
 
-  /* ------------------------------------------------
-     SEND MESSAGE (WORKS FOR BOTH)
-  ------------------------------------------------ */
+    const unsubMessages = onSnapshot(collection(db, "chats", chatId, "messages"), (snap) => {
+      setMessages(sortOldestFirst(snap.docs.map((d) => ({ id: d.id, ...d.data() }))));
+    });
+
+    return () => {
+      unsubChat();
+      unsubMessages();
+    };
+  }, [chatId, user]);
+
   const sendMessage = async () => {
-    if (!text.trim() || !chatId) return;
+    if (!user || !text.trim() || !chatId) return;
+    const messageText = text.trim();
+    const chatRef = doc(db, "chats", chatId);
+    const chatSnap = await getDoc(chatRef);
 
     await addDoc(collection(db, "chats", chatId, "messages"), {
-      text: text.trim(),
+      text: messageText,
       senderId: user.uid,
+      senderName: user.displayName ?? user.email ?? "User",
       createdAt: serverTimestamp(),
     });
+
+    await updateDoc(chatRef, {
+      lastMessage: messageText,
+      updatedAt: serverTimestamp(),
+    });
+
+    if (chatSnap.exists()) {
+      const chat = chatSnap.data();
+      const recipientId = user.uid === chat.leaderId ? chat.worshiperId : chat.leaderId;
+      if (recipientId) {
+        await addDoc(collection(db, "users", recipientId, "notifications"), {
+          text: `New message from ${user.displayName ?? user.email ?? "FaithConnect user"}.`,
+          createdAt: serverTimestamp(),
+        });
+      }
+    }
 
     setText("");
   };
 
-  /* ------------------------------------------------
-     UI
-  ------------------------------------------------ */
+  if (!user) return null;
+
   return (
     <View style={styles.container}>
-      <Text style={styles.heading}>Chat as</Text>
+      <View style={styles.header}>
+        <TouchableOpacity onPress={() => router.back()}>
+          <Text style={styles.backText}>Back</Text>
+        </TouchableOpacity>
+        <Text numberOfLines={1} style={styles.heading}>
+          {title}
+        </Text>
+        <View style={styles.headerSpacer} />
+      </View>
 
       <FlatList
         data={messages}
-        keyExtractor={(i) => i.id}
-        contentContainerStyle={{ paddingBottom: 80 }}
+        keyExtractor={(item) => item.id}
+        contentContainerStyle={styles.messages}
+        ListEmptyComponent={
+          <Text style={styles.emptyText}>Start the conversation with care.</Text>
+        }
         renderItem={({ item }) => {
           const mine = item.senderId === user.uid;
           return (
-            <View style={[styles.msg, mine ? styles.myMsg : styles.otherMsg]}>
-              <Text style={styles.msgText}>{item.text}</Text>
+            <View style={[styles.message, mine ? styles.myMessage : styles.otherMessage]}>
+              <Text style={styles.messageText}>{item.text}</Text>
             </View>
           );
         }}
@@ -126,13 +185,14 @@ export default function Chat() {
 
       <View style={styles.inputRow}>
         <TextInput
+          multiline
           style={styles.input}
           placeholder="Type message..."
           placeholderTextColor="#94a3b8"
           value={text}
           onChangeText={setText}
         />
-        <TouchableOpacity style={styles.sendBtn} onPress={sendMessage}>
+        <TouchableOpacity style={styles.sendButton} onPress={sendMessage}>
           <Text style={styles.sendText}>Send</Text>
         </TouchableOpacity>
       </View>
@@ -140,54 +200,68 @@ export default function Chat() {
   );
 }
 
-/* ------------------------------------------------
-   STYLES
------------------------------------------------- */
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: "#0f172a" },
+  header: {
+    alignItems: "center",
+    borderBottomColor: "#1e293b",
+    borderBottomWidth: 1,
+    flexDirection: "row",
+    gap: 12,
+    padding: 16,
+  },
+  backText: { color: "#7dd3fc", fontWeight: "800", width: 48 },
   heading: {
     color: "#fff",
-    fontSize: 20,
+    flex: 1,
+    fontSize: 19,
+    fontWeight: "800",
     textAlign: "center",
-    padding: 15,
-    borderBottomWidth: 1,
-    borderColor: "#1e293b",
   },
-  msg: {
-    maxWidth: "75%",
-    padding: 10,
-    margin: 8,
-    borderRadius: 10,
+  headerSpacer: { width: 48 },
+  messages: { flexGrow: 1, padding: 12 },
+  message: {
+    borderRadius: 8,
+    marginVertical: 5,
+    maxWidth: "78%",
+    padding: 11,
   },
-  myMsg: {
-    backgroundColor: "#4f46e5",
+  myMessage: {
     alignSelf: "flex-end",
+    backgroundColor: "#4f46e5",
   },
-  otherMsg: {
-    backgroundColor: "#020617",
+  otherMessage: {
     alignSelf: "flex-start",
+    backgroundColor: "#1e293b",
   },
-  msgText: { color: "#fff" },
+  messageText: { color: "#fff", lineHeight: 20 },
+  emptyText: { color: "#94a3b8", marginTop: 20, textAlign: "center" },
   inputRow: {
+    alignItems: "flex-end",
+    backgroundColor: "#020617",
+    borderTopColor: "#1e293b",
+    borderTopWidth: 1,
     flexDirection: "row",
     padding: 10,
-    borderTopWidth: 1,
-    borderColor: "#1e293b",
-    backgroundColor: "#020617",
   },
   input: {
-    flex: 1,
     backgroundColor: "#0f172a",
-    color: "#fff",
-    padding: 10,
+    borderColor: "#1e293b",
     borderRadius: 8,
+    borderWidth: 1,
+    color: "#fff",
+    flex: 1,
+    maxHeight: 110,
+    minHeight: 44,
+    padding: 10,
   },
-  sendBtn: {
+  sendButton: {
     backgroundColor: "#16a34a",
-    marginLeft: 8,
-    paddingHorizontal: 16,
     borderRadius: 8,
     justifyContent: "center",
+    marginLeft: 8,
+    minHeight: 44,
+    paddingHorizontal: 16,
   },
-  sendText: { color: "#fff", fontWeight: "bold" },
+  sendText: { color: "#fff", fontWeight: "800" },
 });
