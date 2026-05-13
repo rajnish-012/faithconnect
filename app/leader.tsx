@@ -85,6 +85,7 @@ export default function Leader() {
   const [faithTradition, setFaithTradition] = useState("Faith guide");
   const [leaderPhotoURL, setLeaderPhotoURL] = useState("");
   const [saving, setSaving] = useState(false);
+  const [uploadDebug, setUploadDebug] = useState("");
 
   useEffect(() => {
     if (!user) return;
@@ -158,6 +159,7 @@ export default function Leader() {
 
     try {
       setSaving(true);
+      setUploadDebug("");
       setUploadProgress(0);
       setUploadStage(selectedMedia ? "preparing" : "publishing");
       const uploadedMedia = selectedMedia
@@ -206,7 +208,9 @@ export default function Leader() {
       setUploadStage("idle");
       Alert.alert("Published", `Your ${contentType} is live for worshipers.`);
     } catch (err: any) {
-      Alert.alert("Could not publish", err.message || "Upload or database write failed.");
+      const message = err.message || "Upload or database write failed.";
+      setUploadDebug(message);
+      Alert.alert("Could not publish", message);
     } finally {
       setSaving(false);
       setUploadStage("idle");
@@ -341,6 +345,7 @@ export default function Leader() {
           </Text>
         </View>
       ) : null}
+      {uploadDebug ? <Text style={styles.debugText}>{uploadDebug}</Text> : null}
       <TouchableOpacity
         disabled={saving}
         style={[styles.primaryButton, saving && styles.disabledButton]}
@@ -576,4 +581,16 @@ const styles = StyleSheet.create({
   postImage: { borderRadius: 8, height: 160, marginTop: 12, width: "100%" },
   metrics: { color: "#64748b", fontSize: 12, fontWeight: "800", marginTop: 10 },
   emptyText: { color: "#64748b", lineHeight: 20, marginBottom: 10 },
+  debugText: {
+    backgroundColor: "#fef2f2",
+    borderColor: "#fecaca",
+    borderRadius: 8,
+    borderWidth: 1,
+    color: "#991b1b",
+    fontFamily: "monospace",
+    fontSize: 12,
+    lineHeight: 18,
+    marginBottom: 12,
+    padding: 10,
+  },
 });

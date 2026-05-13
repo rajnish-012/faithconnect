@@ -4,8 +4,10 @@ import { signOut } from "firebase/auth";
 import {
   addDoc,
   collection,
+  collectionGroup,
   deleteDoc,
   doc,
+  getDoc,
   increment,
   onSnapshot,
   query,
@@ -27,6 +29,7 @@ import {
 } from "react-native";
 import { MediaPreview, inferMediaType } from "../components/media-preview";
 import { auth, db } from "../firebase";
+import { ensureFaithConnectDemoContent } from "../utils/firebase-content";
 
 type TabKey = "home" | "leaders" | "reels" | "chats" | "notifications";
 type FeedMode = "explore" | "following";
@@ -96,12 +99,26 @@ export default function Worshiper() {
   const [chats, setChats] = useState<ChatPreview[]>([]);
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
   const [commentDrafts, setCommentDrafts] = useState<Record<string, string>>({});
+  const [likedPosts, setLikedPosts] = useState<Record<string, boolean>>({});
+  const [leadersError, setLeadersError] = useState("");
 
   useEffect(() => {
-    const leadersQuery = query(collection(db, "users"), where("role", "==", "leader"));
-    const unsubLeaders = onSnapshot(leadersQuery, (snap) => {
-      setLeaders(snap.docs.map((d) => ({ id: d.id, ...d.data() })));
+    ensureFaithConnectDemoContent().catch((error) => {
+      console.error("Could not seed FaithConnect demo content", error);
     });
+
+    const leadersQuery = query(collection(db, "users"), where("role", "==", "leader"));
+    const unsubLeaders = onSnapshot(
+      leadersQuery,
+      (snap) => {
+        setLeadersError("");
+        setLeaders(snap.docs.map((d) => ({ id: d.id, ...d.data() })));
+      },
+      (error) => {
+        console.error("Could not load leaders", error);
+        setLeadersError(error.message);
+      },
+    );
 
     const unsubPosts = onSnapshot(collection(db, "posts"), (snap) => {
       setPosts(sortNewestFirst(snap.docs.map((d) => ({ id: d.id, ...d.data() }))));
@@ -136,10 +153,23 @@ export default function Worshiper() {
       },
     );
 
+    const likedQuery = query(collectionGroup(db, "likes"), where("userId", "==", user.uid));
+    const unsubLikes = onSnapshot(likedQuery, (snap) => {
+      const next: Record<string, boolean> = {};
+      snap.docs.forEach((likeDoc) => {
+        const postId = likeDoc.data().postId || likeDoc.ref.parent.parent?.id;
+        if (postId) {
+          next[postId] = true;
+        }
+      });
+      setLikedPosts(next);
+    });
+
     return () => {
       unsubFollowing();
       unsubChats();
       unsubNotifications();
+      unsubLikes();
     };
   }, [user]);
 
@@ -190,15 +220,37 @@ export default function Worshiper() {
   };
 
   const engagePost = async (post: Post, action: "like" | "save" | "share") => {
-    const field = action === "like" ? "likeCount" : action === "save" ? "saveCount" : "shareCount";
-    await updateDoc(doc(db, "posts", post.id), { [field]: increment(1) });
+    if (!user) return;
 
-    if (user && post.leaderId && post.leaderId !== user.uid && action === "like") {
-      await addDoc(collection(db, "users", post.leaderId, "notifications"), {
-        text: `${user.displayName ?? "A worshiper"} liked your post.`,
+    if (action === "like") {
+      const likeRef = doc(db, "posts", post.id, "likes", user.uid);
+      const likeSnap = await getDoc(likeRef);
+
+      if (likeSnap.exists()) {
+        await deleteDoc(likeRef);
+        await updateDoc(doc(db, "posts", post.id), { likeCount: increment(-1) });
+        return;
+      }
+
+      await setDoc(likeRef, {
+        postId: post.id,
+        userId: user.uid,
+        userName: user.displayName ?? user.email ?? "Worshiper",
         createdAt: serverTimestamp(),
       });
+      await updateDoc(doc(db, "posts", post.id), { likeCount: increment(1) });
+
+      if (post.leaderId && post.leaderId !== user.uid) {
+        await addDoc(collection(db, "users", post.leaderId, "notifications"), {
+          text: `${user.displayName ?? "A worshiper"} liked your post.`,
+          createdAt: serverTimestamp(),
+        });
+      }
+      return;
     }
+
+    const field = action === "save" ? "saveCount" : "shareCount";
+    await updateDoc(doc(db, "posts", post.id), { [field]: increment(1) });
 
     if (action === "share") {
       Alert.alert("Shared", "Post share activity recorded for the prototype.");
@@ -265,7 +317,12 @@ export default function Worshiper() {
       ) : null}
 
       <View style={styles.actionRow}>
-        <Action icon="heart-outline" label={`${post.likeCount ?? 0}`} onPress={() => engagePost(post, "like")} />
+        <Action
+          active={Boolean(likedPosts[post.id])}
+          icon={likedPosts[post.id] ? "thumbs-up" : "thumbs-up-outline"}
+          label={`${post.likeCount ?? 0}`}
+          onPress={() => engagePost(post, "like")}
+        />
         <Action icon="chatbubble-outline" label={`${post.commentCount ?? 0}`} />
         <Action icon="bookmark-outline" label={`${post.saveCount ?? 0}`} onPress={() => engagePost(post, "save")} />
         <Action icon="share-social-outline" label={`${post.shareCount ?? 0}`} onPress={() => engagePost(post, "share")} />
@@ -353,7 +410,14 @@ export default function Worshiper() {
           </View>
         ))
       ) : (
-        <EmptyText text="Follow leaders from Explore to see them here." />
+        <EmptyText
+          text={
+            leadersError ||
+            (leadersMode === "explore"
+              ? "No leaders found. Make sure the leader has a users/{uid} document with role set to leader."
+              : "Follow leaders from Explore to see them here.")
+          }
+        />
       )}
     </>
   );
@@ -378,7 +442,13 @@ export default function Worshiper() {
               <Text style={styles.reelText}>{post.text}</Text>
             </View>
             <View style={styles.reelActions}>
-              <Action light icon="heart-outline" label={`${post.likeCount ?? 0}`} onPress={() => engagePost(post, "like")} />
+              <Action
+                active={Boolean(likedPosts[post.id])}
+                light
+                icon={likedPosts[post.id] ? "thumbs-up" : "thumbs-up-outline"}
+                label={`${post.likeCount ?? 0}`}
+                onPress={() => engagePost(post, "like")}
+              />
               <Action light icon="chatbubble-outline" label={`${post.commentCount ?? 0}`} />
               <Action light icon="bookmark-outline" label={`${post.saveCount ?? 0}`} onPress={() => engagePost(post, "save")} />
               <Action light icon="share-social-outline" label={`${post.shareCount ?? 0}`} onPress={() => engagePost(post, "share")} />
@@ -499,20 +569,26 @@ function Segment({
 }
 
 function Action({
+  active,
   icon,
   label,
   onPress,
   light,
 }: {
+  active?: boolean;
   icon: keyof typeof Ionicons.glyphMap;
   label: string;
   onPress?: () => void;
   light?: boolean;
 }) {
+  const color = active ? "#2563eb" : light ? "#fff" : "#475569";
+
   return (
     <TouchableOpacity style={styles.action} onPress={onPress}>
-      <Ionicons name={icon} size={18} color={light ? "#fff" : "#475569"} />
-      <Text style={[styles.actionText, light && styles.lightText]}>{label}</Text>
+      <Ionicons name={icon} size={18} color={color} />
+      <Text style={[styles.actionText, light && styles.lightText, active && styles.activeActionText]}>
+        {label}
+      </Text>
     </TouchableOpacity>
   );
 }
@@ -598,6 +674,7 @@ const styles = StyleSheet.create({
   },
   action: { alignItems: "center", flexDirection: "row", gap: 5 },
   actionText: { color: "#475569", fontSize: 12, fontWeight: "800" },
+  activeActionText: { color: "#2563eb" },
   lightText: { color: "#fff" },
   commentRow: { flexDirection: "row", gap: 8, marginTop: 12 },
   commentInput: {

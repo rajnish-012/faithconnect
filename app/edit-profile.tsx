@@ -15,7 +15,10 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
+import { CityAutocomplete, formatCityOption } from "../components/city-autocomplete";
 import { auth, db } from "../firebase";
+import { CityOption } from "../utils/city-search";
+import { faithOptions } from "../utils/firebase-content";
 import { testStorageWrite, uploadAssetToStorage } from "../utils/firebase-media";
 
 const fallbackAvatar =
@@ -26,6 +29,7 @@ export default function EditProfile() {
   const [displayName, setDisplayName] = useState("");
   const [faithTradition, setFaithTradition] = useState("");
   const [location, setLocation] = useState("");
+  const [selectedCity, setSelectedCity] = useState<CityOption | null>(null);
   const [bio, setBio] = useState("");
   const [photoURL, setPhotoURL] = useState("");
   const [selectedPhoto, setSelectedPhoto] = useState<ImagePicker.ImagePickerAsset | null>(null);
@@ -47,6 +51,14 @@ export default function EditProfile() {
         setDisplayName(profile.displayName || user.displayName || "");
         setFaithTradition(profile.faithTradition || "");
         setLocation(profile.location || "");
+        if (profile.city && profile.country && profile.pincode) {
+          setSelectedCity({
+            id: `${profile.city}-${profile.country}-${profile.pincode}`,
+            city: profile.city,
+            country: profile.country,
+            pincode: profile.pincode,
+          });
+        }
         setBio(profile.bio || "");
         setPhotoURL(profile.photoURL || user.photoURL || "");
       })
@@ -82,6 +94,11 @@ export default function EditProfile() {
       return;
     }
 
+    if (!selectedCity || location !== formatCityOption(selectedCity)) {
+      Alert.alert("Select city", "Please choose a city from the suggestions.");
+      return;
+    }
+
     try {
       setSaving(true);
       setStorageDebug("");
@@ -105,7 +122,10 @@ export default function EditProfile() {
       const profileUpdates: Record<string, unknown> = {
         displayName: displayName.trim(),
         faithTradition: faithTradition.trim(),
-        location: location.trim(),
+        location: formatCityOption(selectedCity),
+        city: selectedCity.city,
+        country: selectedCity.country,
+        pincode: selectedCity.pincode,
         bio: bio.trim(),
         photoURL: nextPhotoURL,
         updatedAt: serverTimestamp(),
@@ -195,21 +215,39 @@ export default function EditProfile() {
       />
 
       <Text style={styles.label}>Faith / denomination</Text>
-      <TextInput
-        style={styles.input}
-        placeholder="Christianity, Islam, Judaism, Other..."
-        placeholderTextColor="#94a3b8"
-        value={faithTradition}
-        onChangeText={setFaithTradition}
-      />
+      <View style={styles.choiceGrid}>
+        {faithOptions.map((option) => (
+          <TouchableOpacity
+            key={option}
+            style={[
+              styles.choice,
+              faithTradition === option && styles.choiceSelected,
+            ]}
+            onPress={() => setFaithTradition(option)}
+          >
+            <Text
+              style={[
+                styles.choiceText,
+                faithTradition === option && styles.choiceSelectedText,
+              ]}
+            >
+              {option}
+            </Text>
+          </TouchableOpacity>
+        ))}
+      </View>
 
       <Text style={styles.label}>Location</Text>
-      <TextInput
-        style={styles.input}
-        placeholder="City or community"
-        placeholderTextColor="#94a3b8"
+      <CityAutocomplete
         value={location}
-        onChangeText={setLocation}
+        onChangeText={(value) => {
+          setLocation(value);
+          setSelectedCity(null);
+        }}
+        onSelect={(city) => {
+          setSelectedCity(city);
+          setLocation(formatCityOption(city));
+        }}
       />
 
       <Text style={styles.label}>Bio / details</Text>
@@ -309,6 +347,32 @@ const styles = StyleSheet.create({
     color: "#0f172a",
     marginBottom: 10,
     padding: 13,
+  },
+  choiceGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+    marginBottom: 10,
+  },
+  choice: {
+    backgroundColor: "#fff",
+    borderColor: "#cbd5e1",
+    borderRadius: 8,
+    borderWidth: 1,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+  },
+  choiceSelected: {
+    backgroundColor: "#2563eb",
+    borderColor: "#2563eb",
+  },
+  choiceText: {
+    color: "#475569",
+    fontSize: 12,
+    fontWeight: "900",
+  },
+  choiceSelectedText: {
+    color: "#fff",
   },
   bioInput: { minHeight: 110, textAlignVertical: "top" },
   uploadStatus: {

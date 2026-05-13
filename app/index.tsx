@@ -1,6 +1,6 @@
 import { router } from "expo-router";
-import { onAuthStateChanged } from "firebase/auth";
-import { doc, getDoc } from "firebase/firestore";
+import { onAuthStateChanged, signOut } from "firebase/auth";
+import { doc, getDoc, serverTimestamp, setDoc } from "firebase/firestore";
 import { useEffect, useState } from "react";
 import { ActivityIndicator, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { auth, db } from "../firebase";
@@ -10,14 +10,45 @@ export default function Intro() {
 
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, async (user) => {
-      if (user) {
-        const snap = await getDoc(doc(db, "users", user.uid));
+      try {
+        if (user) {
+          const userRef = doc(db, "users", user.uid);
+          let snap = await getDoc(userRef);
 
-        if (snap.exists()) {
-          const role = snap.data().role;
-          router.replace(role === "leader" ? "/leader" : "/worshiper");
-          return;
+          if (!snap.exists()) {
+            const registrationSnap = await getDoc(doc(db, "registration", user.uid));
+            if (registrationSnap.exists()) {
+              const registrationData = registrationSnap.data();
+              await setDoc(
+                userRef,
+                {
+                  ...registrationData,
+                  uid: user.uid,
+                  email: user.email ?? registrationData.email ?? "",
+                  displayName:
+                    registrationData.displayName ||
+                    user.displayName ||
+                    user.email ||
+                    "FaithConnect User",
+                  updatedAt: serverTimestamp(),
+                },
+                { merge: true },
+              );
+              snap = await getDoc(userRef);
+            }
+          }
+
+          if (snap.exists()) {
+            const role = snap.data().role;
+            router.replace(role === "leader" ? "/leader" : "/worshiper");
+            return;
+          }
+
+          await signOut(auth);
         }
+      } catch (error) {
+        console.error("Auth bootstrap failed", error);
+        await signOut(auth).catch(() => undefined);
       }
 
       setCheckingAuth(false);

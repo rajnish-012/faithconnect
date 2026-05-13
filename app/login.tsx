@@ -1,14 +1,16 @@
 import { View, Text, TextInput, TouchableOpacity, StyleSheet, Alert } from "react-native";
 import { signInWithEmailAndPassword } from "firebase/auth";
-import { doc, getDoc } from "firebase/firestore";
+import { doc, getDoc, serverTimestamp, setDoc } from "firebase/firestore";
 import { auth, db } from "../firebase";
 import { useState } from "react";
 import { router } from "expo-router";
+import { repairMissingUserProfile, UserRole } from "../utils/auth-profile";
 
 export default function Login() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
+  const [repairNeeded, setRepairNeeded] = useState(false);
 
   const handleLogin = async () => {
     if (!email.trim() || !password) {
@@ -25,13 +27,40 @@ export default function Login() {
         password
       );
 
-      const userDoc = await getDoc(doc(db, "users", userCred.user.uid));
+      const userRef = doc(db, "users", userCred.user.uid);
+      let userDoc = await getDoc(userRef);
 
       if (!userDoc.exists()) {
-        Alert.alert("Error", "User role not found");
+        const registrationDoc = await getDoc(doc(db, "registration", userCred.user.uid));
+
+        if (registrationDoc.exists()) {
+          const registrationData = registrationDoc.data();
+          await setDoc(
+            userRef,
+            {
+              ...registrationData,
+              uid: userCred.user.uid,
+              email: userCred.user.email ?? registrationData.email ?? email.trim().toLowerCase(),
+              displayName:
+                registrationData.displayName ||
+                userCred.user.displayName ||
+                userCred.user.email ||
+                "FaithConnect User",
+              updatedAt: serverTimestamp(),
+            },
+            { merge: true },
+          );
+          userDoc = await getDoc(userRef);
+        }
+      }
+
+      if (!userDoc.exists()) {
+        setRepairNeeded(true);
+        Alert.alert("Finish account setup", "Choose your role below to recreate your profile.");
         return;
       }
 
+      setRepairNeeded(false);
       const role = userDoc.data().role;
 
       if (role === "leader") {
@@ -41,6 +70,25 @@ export default function Login() {
       }
     } catch (err: any) {
       Alert.alert("Login failed", err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleRepair = async (role: UserRole) => {
+    const user = auth.currentUser;
+    if (!user) {
+      Alert.alert("Login required", "Please login again before repairing the profile.");
+      return;
+    }
+
+    try {
+      setLoading(true);
+      await repairMissingUserProfile(user, role);
+      setRepairNeeded(false);
+      router.replace({ pathname: role === "leader" ? "/leader" : "/worshiper" });
+    } catch (err: any) {
+      Alert.alert("Repair failed", err.message || "Could not recreate Firestore profile.");
     } finally {
       setLoading(false);
     }
@@ -80,6 +128,32 @@ export default function Login() {
       <TouchableOpacity onPress={() => router.push({ pathname: "/role" })}>
         <Text style={styles.link}>Not registered? Register</Text>
       </TouchableOpacity>
+
+      {repairNeeded ? (
+        <View style={styles.repairPanel}>
+          <Text style={styles.repairTitle}>Firestore profile missing</Text>
+          <Text style={styles.repairText}>
+            Your Authentication account exists, but users/uid was not created.
+            Recreate it with the correct role.
+          </Text>
+          <View style={styles.repairActions}>
+            <TouchableOpacity
+              disabled={loading}
+              style={styles.repairButton}
+              onPress={() => handleRepair("worshiper")}
+            >
+              <Text style={styles.repairButtonText}>Worshiper</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              disabled={loading}
+              style={styles.repairButton}
+              onPress={() => handleRepair("leader")}
+            >
+              <Text style={styles.repairButtonText}>Leader</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      ) : null}
     </View>
   );
 }
@@ -123,5 +197,41 @@ const styles = StyleSheet.create({
     color: "#93c5fd",
     textAlign: "center",
     marginTop: 15,
+  },
+  repairPanel: {
+    backgroundColor: "#1e293b",
+    borderColor: "#475569",
+    borderRadius: 8,
+    borderWidth: 1,
+    marginTop: 18,
+    padding: 14,
+  },
+  repairTitle: {
+    color: "#fff",
+    fontSize: 15,
+    fontWeight: "900",
+    textAlign: "center",
+  },
+  repairText: {
+    color: "#cbd5e1",
+    lineHeight: 20,
+    marginTop: 8,
+    textAlign: "center",
+  },
+  repairActions: {
+    flexDirection: "row",
+    gap: 10,
+    marginTop: 12,
+  },
+  repairButton: {
+    backgroundColor: "#2563eb",
+    borderRadius: 8,
+    flex: 1,
+    padding: 12,
+  },
+  repairButtonText: {
+    color: "#fff",
+    fontWeight: "900",
+    textAlign: "center",
   },
 });

@@ -1,6 +1,6 @@
 import type { ImagePickerAsset } from "expo-image-picker";
 import { getDownloadURL, ref, uploadBytes, uploadString } from "firebase/storage";
-import { firebaseConfig, storage } from "../firebase";
+import { auth, firebaseConfig, storage } from "../firebase";
 
 export type UploadedMedia = {
   downloadURL: string;
@@ -50,6 +50,10 @@ export async function uploadAssetToStorage({
   onStatus,
   timeoutMs = 30000,
 }: UploadOptions): Promise<UploadedMedia> {
+  const currentUser = auth.currentUser;
+  const uploadUser = currentUser?.uid === userId ? currentUser : undefined;
+  await uploadUser?.getIdToken(true);
+
   const mediaType = asset.type === "video" ? "video" : "image";
   const extension = extensionFromAsset(asset);
   const contentType = contentTypeFromAsset(asset);
@@ -66,10 +70,7 @@ export async function uploadAssetToStorage({
 
   let snapshot;
   try {
-    snapshot =
-      mediaType === "image"
-        ? await uploadImageAsset(storageRef, asset, contentType, timeoutMs, onProgress)
-        : await uploadBinaryAsset(storageRef, asset, contentType, timeoutMs, onProgress);
+    snapshot = await uploadBinaryAsset(storageRef, asset, contentType, timeoutMs, onProgress);
   } catch (error) {
     throw new Error(formatStorageError(error, storagePath));
   }
@@ -122,27 +123,10 @@ export function formatStorageError(error: unknown, path?: string) {
     err.message ? `Message: ${err.message}` : null,
     `Bucket: ${firebaseConfig.storageBucket}`,
     path ? `Path: ${path}` : null,
+    "Rules hint: publish storage.rules in Firebase Console > Storage > Rules.",
   ].filter(Boolean);
 
   return details.join("\n");
-}
-
-async function uploadImageAsset(
-  storageRef: ReturnType<typeof ref>,
-  asset: ImagePickerAsset,
-  contentType: string,
-  timeoutMs: number,
-  onProgress?: (progress: number) => void,
-) {
-  const dataUrl = await imageAssetToDataUrl(asset, contentType);
-  onProgress?.(45);
-
-  return withTimeout(
-    uploadString(storageRef, dataUrl, "data_url", {
-      contentType,
-    }),
-    timeoutMs,
-  );
 }
 
 async function uploadBinaryAsset(
@@ -152,7 +136,7 @@ async function uploadBinaryAsset(
   timeoutMs: number,
   onProgress?: (progress: number) => void,
 ) {
-  const blob = asset.file ?? (await fetchAssetBlob(asset.uri));
+  const blob = asset.file ?? (await assetToBlob(asset));
   onProgress?.(45);
 
   const snapshot = await withTimeout(
@@ -166,7 +150,20 @@ async function uploadBinaryAsset(
   return snapshot;
 }
 
-async function imageAssetToDataUrl(asset: ImagePickerAsset, contentType: string) {
+async function assetToBlob(asset: ImagePickerAsset) {
+  if (asset.file) return asset.file;
+
+  if (asset.base64 || asset.uri.startsWith("data:")) {
+    const contentType = contentTypeFromAsset(asset);
+    const dataUrl = imageAssetToDataUrl(asset, contentType);
+    const response = await fetch(dataUrl);
+    return response.blob();
+  }
+
+  return fetchAssetBlob(asset.uri);
+}
+
+function imageAssetToDataUrl(asset: ImagePickerAsset, contentType: string) {
   if (asset.base64) {
     return `data:${contentType};base64,${asset.base64}`;
   }
@@ -175,10 +172,7 @@ async function imageAssetToDataUrl(asset: ImagePickerAsset, contentType: string)
     return asset.uri;
   }
 
-  const blob = asset.file ?? (await fetchAssetBlob(asset.uri));
-  const dataUrl = await blobToDataUrl(blob);
-  (blob as Blob & { close?: () => void }).close?.();
-  return dataUrl;
+  throw new Error("Selected image did not include readable data.");
 }
 
 async function fetchAssetBlob(uri: string) {
@@ -187,15 +181,6 @@ async function fetchAssetBlob(uri: string) {
     throw new Error(`Could not read selected file. Status: ${response.status}`);
   }
   return response.blob();
-}
-
-async function blobToDataUrl(blob: Blob) {
-  return new Promise<string>((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onerror = () => reject(new Error("Could not read selected image file."));
-    reader.onload = () => resolve(String(reader.result));
-    reader.readAsDataURL(blob);
-  });
 }
 
 async function withTimeout<T>(promise: Promise<T>, timeoutMs: number) {

@@ -1,0 +1,73 @@
+[debug] [2026-05-13T06:33:35.815Z] ----------------------------------------------------------------------
+[debug] [2026-05-13T06:33:35.817Z] Command:       C:\Program Files\nodejs\node.exe C:\Users\rajni\AppData\Roaming\npm\node_modules\firebase-tools\lib\bin\firebase.js deploy --only firestore:rules --project faithconnect-1aa1f
+[debug] [2026-05-13T06:33:35.817Z] CLI Version:   14.17.0
+[debug] [2026-05-13T06:33:35.817Z] Platform:      win32
+[debug] [2026-05-13T06:33:35.817Z] Node Version:  v22.14.0
+[debug] [2026-05-13T06:33:35.817Z] Time:          Wed May 13 2026 12:03:35 GMT+0530 (India Standard Time)
+[debug] [2026-05-13T06:33:35.817Z] ----------------------------------------------------------------------
+[debug] 
+[debug] [2026-05-13T06:33:35.819Z] >>> [apiv2][query] GET https://firebase-public.firebaseio.com/cli.json [none]
+[debug] [2026-05-13T06:33:35.990Z] > command requires scopes: ["email","openid","https://www.googleapis.com/auth/cloudplatformprojects.readonly","https://www.googleapis.com/auth/firebase","https://www.googleapis.com/auth/cloud-platform"]
+[debug] [2026-05-13T06:33:35.991Z] > authorizing via signed-in user (rajnishkr.22.11.48@gmail.com)
+[debug] [2026-05-13T06:33:35.991Z] [iam] checking project faithconnect-1aa1f for permissions ["datastore.indexes.create","datastore.indexes.delete","datastore.indexes.list","datastore.indexes.update","firebase.projects.get"]
+[debug] [2026-05-13T06:33:35.992Z] Checked if tokens are valid: false, expires at: 1758993008596
+[debug] [2026-05-13T06:33:35.992Z] Checked if tokens are valid: false, expires at: 1758993008596
+[debug] [2026-05-13T06:33:35.992Z] > refreshing access token with scopes: []
+[debug] [2026-05-13T06:33:35.993Z] >>> [apiv2][query] POST https://www.googleapis.com/oauth2/v3/token [none]
+[debug] [2026-05-13T06:33:35.993Z] >>> [apiv2][body] POST https://www.googleapis.com/oauth2/v3/token [omitted]
+[debug] [2026-05-13T06:33:36.343Z] <<< [apiv2][status] POST https://www.googleapis.com/oauth2/v3/token 400
+[debug] [2026-05-13T06:33:36.344Z] <<< [apiv2][body] POST https://www.googleapis.com/oauth2/v3/token [omitted]
+[debug] [2026-05-13T06:33:36.344Z] >>> [apiv2][query] POST https://cloudresourcemanager.googleapis.com/v1/projects/faithconnect-1aa1f:testIamPermissions [none]
+[debug] [2026-05-13T06:33:36.344Z] >>> [apiv2][(partial)header] POST https://cloudresourcemanager.googleapis.com/v1/projects/faithconnect-1aa1f:testIamPermissions x-goog-quota-user=projects/faithconnect-1aa1f
+[debug] [2026-05-13T06:33:36.344Z] >>> [apiv2][body] POST https://cloudresourcemanager.googleapis.com/v1/projects/faithconnect-1aa1f:testIamPermissions {"permissions":["datastore.indexes.create","datastore.indexes.delete","datastore.indexes.list","datastore.indexes.update","firebase.projects.get"]}
+[debug] [2026-05-13T06:33:36.674Z] <<< [apiv2][status] GET https://firebase-public.firebaseio.com/cli.json 200
+[debug] [2026-05-13T06:33:36.674Z] <<< [apiv2][body] GET https://firebase-public.firebaseio.com/cli.json {"cloudBuildErrorAfter":1594252800000,"cloudBuildWarnAfter":1590019200000,"defaultNode10After":1594252800000,"minVersion":"3.0.5","node8DeploysDisabledAfter":1613390400000,"node8RuntimeDisabledAfter":1615809600000,"node8WarnAfter":1600128000000}
+[debug] [2026-05-13T06:33:37.845Z] <<< [apiv2][status] POST https://cloudresourcemanager.googleapis.com/v1/projects/faithconnect-1aa1f:testIamPermissions 401
+[debug] [2026-05-13T06:33:37.845Z] <<< [apiv2][body] POST https://cloudresourcemanager.googleapis.com/v1/projects/faithconnect-1aa1f:testIamPermissions {"error":{"code":401,"message":"Request had invalid authentication credentials. Expected OAuth 2 access token, login cookie or other valid authentication credential. See https://developers.google.com/identity/sign-in/web/devconsole-project.","status":"UNAUTHENTICATED","details":[{"@type":"type.googleapis.com/google.rpc.ErrorInfo","reason":"ACCESS_TOKEN_TYPE_UNSUPPORTED","metadata":{"method":"google.cloudresourcemanager.v1.Projects.TestIamPermissions","service":"cloudresourcemanager.googleapis.com"}}]}}
+[debug] [2026-05-13T06:33:37.845Z] Got a 401 Unauthenticated error for a call that required authentication. Refreshing tokens.
+[debug] [2026-05-13T06:33:37.845Z] Checked if tokens are valid: false, expires at: 1758993008596
+[debug] [2026-05-13T06:33:37.845Z] Checked if tokens are valid: false, expires at: 1758993008596
+[debug] [2026-05-13T06:33:37.845Z] > refreshing access token with scopes: []
+[debug] [2026-05-13T06:33:37.846Z] >>> [apiv2][query] POST https://www.googleapis.com/oauth2/v3/token [none]
+[debug] [2026-05-13T06:33:37.846Z] >>> [apiv2][body] POST https://www.googleapis.com/oauth2/v3/token [omitted]
+[debug] [2026-05-13T06:33:37.972Z] <<< [apiv2][status] POST https://www.googleapis.com/oauth2/v3/token 400
+[debug] [2026-05-13T06:33:37.972Z] <<< [apiv2][body] POST https://www.googleapis.com/oauth2/v3/token [omitted]
+[debug] [2026-05-13T06:33:37.973Z] [iam] error while checking permissions, command may fail: Request to https://cloudresourcemanager.googleapis.com/v1/projects/faithconnect-1aa1f:testIamPermissions had HTTP Error: 401, Request had invalid authentication credentials. Expected OAuth 2 access token, login cookie or other valid authentication credential. See https://developers.google.com/identity/sign-in/web/devconsole-project.
+[info] 
+[info] === Deploying to 'faithconnect-1aa1f'...
+[info] 
+[info] i  deploying firestore 
+[info] i  cloud.firestore: checking firestore.rules for compilation errors... 
+[debug] [2026-05-13T06:33:37.976Z] Checked if tokens are valid: false, expires at: 1758993008596
+[debug] [2026-05-13T06:33:37.976Z] Checked if tokens are valid: false, expires at: 1758993008596
+[debug] [2026-05-13T06:33:37.976Z] > refreshing access token with scopes: []
+[debug] [2026-05-13T06:33:37.976Z] >>> [apiv2][query] POST https://www.googleapis.com/oauth2/v3/token [none]
+[debug] [2026-05-13T06:33:37.976Z] >>> [apiv2][body] POST https://www.googleapis.com/oauth2/v3/token [omitted]
+[debug] [2026-05-13T06:33:38.120Z] <<< [apiv2][status] POST https://www.googleapis.com/oauth2/v3/token 400
+[debug] [2026-05-13T06:33:38.120Z] <<< [apiv2][body] POST https://www.googleapis.com/oauth2/v3/token [omitted]
+[debug] [2026-05-13T06:33:38.120Z] >>> [apiv2][query] POST https://firebaserules.googleapis.com/v1/projects/faithconnect-1aa1f:test [none]
+[debug] [2026-05-13T06:33:38.120Z] >>> [apiv2][body] POST https://firebaserules.googleapis.com/v1/projects/faithconnect-1aa1f:test [omitted]
+[debug] [2026-05-13T06:33:39.591Z] <<< [apiv2][status] POST https://firebaserules.googleapis.com/v1/projects/faithconnect-1aa1f:test 401
+[debug] [2026-05-13T06:33:39.591Z] <<< [apiv2][body] POST https://firebaserules.googleapis.com/v1/projects/faithconnect-1aa1f:test {"error":{"code":401,"message":"Request had invalid authentication credentials. Expected OAuth 2 access token, login cookie or other valid authentication credential. See https://developers.google.com/identity/sign-in/web/devconsole-project.","status":"UNAUTHENTICATED"}}
+[debug] [2026-05-13T06:33:39.591Z] Got a 401 Unauthenticated error for a call that required authentication. Refreshing tokens.
+[debug] [2026-05-13T06:33:39.591Z] Checked if tokens are valid: false, expires at: 1758993008596
+[debug] [2026-05-13T06:33:39.591Z] Checked if tokens are valid: false, expires at: 1758993008596
+[debug] [2026-05-13T06:33:39.591Z] > refreshing access token with scopes: []
+[debug] [2026-05-13T06:33:39.591Z] >>> [apiv2][query] POST https://www.googleapis.com/oauth2/v3/token [none]
+[debug] [2026-05-13T06:33:39.591Z] >>> [apiv2][body] POST https://www.googleapis.com/oauth2/v3/token [omitted]
+[debug] [2026-05-13T06:33:39.722Z] <<< [apiv2][status] POST https://www.googleapis.com/oauth2/v3/token 400
+[debug] [2026-05-13T06:33:39.722Z] <<< [apiv2][body] POST https://www.googleapis.com/oauth2/v3/token [omitted]
+[error] 
+[error] Error: Request to https://firebaserules.googleapis.com/v1/projects/faithconnect-1aa1f:test had HTTP Error: 401, Request had invalid authentication credentials. Expected OAuth 2 access token, login cookie or other valid authentication credential. See https://developers.google.com/identity/sign-in/web/devconsole-project.
+[debug] [2026-05-13T06:33:40.113Z] Error Context: {
+  "body": {
+    "error": {
+      "code": 401,
+      "message": "Request had invalid authentication credentials. Expected OAuth 2 access token, login cookie or other valid authentication credential. See https://developers.google.com/identity/sign-in/web/devconsole-project.",
+      "status": "UNAUTHENTICATED"
+    }
+  },
+  "response": {
+    "statusCode": 401
+  }
+}

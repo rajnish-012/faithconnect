@@ -1,0 +1,20 @@
+Starting project at D:\Internshala\faithconnect
+React Compiler enabled
+Starting Metro Bundler
+Waiting on http://localhost:8082
+Logs for your project will appear below.
+λ Bundled 2586ms node_modules\expo-router\node\render.js (1007 modules)
+Web node_modules\expo-router\entry.js ▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░ 99.9% (875/875)
+Web Bundled 4255ms node_modules\expo-router\entry.js (875 modules)
+Web Bundled 871ms node_modules\expo-router\entry.js (876 modules)
+ LOG  [web] Logs will appear in the browser console
+Web node_modules\expo-router\entry.js ░░░░░░░░░░░░░░░░  0.0% (0/1)
+λ Bundled 384ms node_modules\expo-router\node\render.js (1 module)
+Web Bundled 1154ms node_modules\expo-router\entry.js (1 module)
+Web Bundled 45ms node_modules\expo-router\entry.js (1 module)
+ LOG  [web] Logs will appear in the browser console
+Web node_modules\expo-router\entry.js ░░░░░░░░░░░░░░░░  0.0% (0/1)
+Web Bundled 168ms node_modules\expo-router\entry.js (1 module)
+λ Bundled 204ms node_modules\expo-router\node\render.js (1 module)
+Web Bundled 39ms node_modules\expo-router\entry.js (1 module)
+ LOG  [web] Logs will appear in the browser console
